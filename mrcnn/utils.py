@@ -759,7 +759,7 @@ def compute_ap_range(gt_box, gt_class_id, gt_mask,
     iou_thresholds = iou_thresholds or np.arange(0.5, 1.0, 0.05)
     
     # Compute AP over range of IoU thresholds
-    AP = []
+    APs = []
     for iou_threshold in iou_thresholds:
         ap, precisions, recalls, overlaps =\
             compute_ap(gt_box, gt_class_id, gt_mask,
@@ -767,12 +767,17 @@ def compute_ap_range(gt_box, gt_class_id, gt_mask,
                         iou_threshold=iou_threshold)
         if verbose:
             print("AP @{:.2f}:\t {:.3f}".format(iou_threshold, ap))
-        AP.append(ap)
-    AP = np.array(AP).mean()
+        APs.append(ap)
+    
+    APs_np = np.array(APs)
+    m = APs_np.mean()
+    APs = [m] + APs
+    APs = np.array(APs)
+
     if verbose:
         print("AP @{:.2f}-{:.2f}:\t {:.3f}".format(
-            iou_thresholds[0], iou_thresholds[-1], AP))
-    return AP
+            iou_thresholds[0], iou_thresholds[-1], APs))
+    return APs
 
 
 def compute_recall(pred_boxes, gt_boxes, iou):
