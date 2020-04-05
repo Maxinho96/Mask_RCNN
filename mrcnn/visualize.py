@@ -12,6 +12,7 @@ import sys
 import random
 import itertools
 import colorsys
+import cv2
 
 import numpy as np
 from skimage.measure import find_contours
@@ -79,6 +80,87 @@ def apply_mask(image, mask, color, alpha=0.5):
                                   image[:, :, c])
     return image
 
+def put_instances(image, boxes, masks, class_ids, class_names,
+                      scores=None,
+                      show_mask=True, show_bbox=True,
+                      colors=None, captions=None):
+    """
+    boxes: [num_instance, (y1, x1, y2, x2, class_id)] in image coordinates.
+    masks: [height, width, num_instances]
+    class_ids: [num_instances]
+    class_names: list of class names of the dataset
+    scores: (optional) confidence scores for each box
+    show_mask, show_bbox: To show masks and bounding boxes or not
+    colors: (optional) An array or colors to use with each object
+    captions: (optional) A list of strings to use as captions for each object
+    """
+    # Number of instances
+    N = boxes.shape[0]
+    if not N:
+        print("\n*** No instances to display *** \n")
+    else:
+        assert boxes.shape[0] == masks.shape[-1] == class_ids.shape[0]
+
+    # Generate random colors
+    colors = colors or random_colors(len(class_names))
+
+    # Show area outside image boundaries.
+    # height, width = image.shape[:2]
+
+    for i in range(N):
+        r, g, b = colors[class_ids[i]]
+        raw_color = b, g, r
+        color = int(b*255), int(g*255), int(r*255)
+
+        # Bounding box
+        if not np.any(boxes[i]):
+            # Skip this instance. Has no bbox. Likely lost in image cropping.
+            continue
+        y1, x1, y2, x2 = boxes[i]
+        y1, x1, y2, x2 = int(y1), int(x1), int(y2), int(x2)
+
+        if show_bbox:
+            masked_image = cv2.rectangle(
+              image,
+              (x1, y1),
+              (x2, y2),
+              color,
+              2)
+
+        # Label
+        if not captions:
+            class_id = class_ids[i]
+            score = scores[i] if scores is not None else None
+            label = class_names[class_id]
+            caption = "{} {:.3f}".format(label, score) if score else label
+        else:
+            caption = captions[i]
+        masked_image = cv2.putText(
+            masked_image,
+            text=caption,
+            color=color,
+            org=(x1, y1),
+            fontFace=cv2.FONT_HERSHEY_DUPLEX,
+            fontScale=0.8,
+            thickness=2)
+
+        # Mask
+        mask = masks[:, :, i]
+        if show_mask:
+            masked_image = apply_mask(masked_image, mask, raw_color)
+
+        # Mask Polygon
+        # Pad to ensure proper polygons for masks that touch image edges.
+        # padded_mask = np.zeros(
+        #     (mask.shape[0] + 2, mask.shape[1] + 2), dtype=np.uint8)
+        # padded_mask[1:-1, 1:-1] = mask
+        # contours = find_contours(padded_mask, 0.5)
+        # for verts in contours:
+            # Subtract the padding and flip (y, x) to (x, y)
+            # verts = np.fliplr(verts) - 1
+            # p = Polygon(verts, facecolor="none", edgecolor=color)
+            # ax.add_patch(p)
+    return masked_image
 
 def display_instances(image, boxes, masks, class_ids, class_names,
                       scores=None, title="",
